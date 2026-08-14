@@ -4,10 +4,16 @@ on:
     tags:
       - v*
 
+permissions:
+  contents: read
+
 jobs:
   release:
     name: Release Process
     runs-on: ubuntu-latest
+    permissions:
+      # Required by GoReleaser to create the release and upload its assets.
+      contents: write
     env:
       CGO_ENABLED: 0
 

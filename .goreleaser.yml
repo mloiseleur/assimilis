@@ -1,3 +1,5 @@
+version: 2
+
 project_name: assimilis
 
 builds:
@@ -43,9 +45,9 @@ changelog:
 archives:
   - id: assimilis
     name_template: '{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
-    format: tar.gz
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE

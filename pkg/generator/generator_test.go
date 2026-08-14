@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -119,6 +120,53 @@ func TestBuildIndex_MergesDuplicateComponents(t *testing.T) {
 	merged := byKey["pkg:npm/foo@1.0.0"]
 	require.Equal(t, []string{"Apache-2.0", "MIT"}, merged.LicenseIDs)
 	require.Equal(t, "(c) Foo Inc", merged.Copyright)
+}
+
+func TestBuildIndex_DuplicateComponentListedOncePerLicense(t *testing.T) {
+	t.Parallel()
+
+	mit := []LicenseChoice{
+		{License: &struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		}{ID: "MIT"}},
+	}
+
+	components := []Component{
+		{Name: "foo", Version: "1.0.0", PURL: "pkg:npm/foo@1.0.0", Licenses: mit},
+		{Name: "foo", Version: "1.0.0", PURL: "pkg:npm/foo@1.0.0", Copyright: "(c) Foo Inc", Licenses: mit},
+	}
+
+	byLicense, _ := buildIndex(components, Filters{}, nil, nil, copyrightEnricher{})
+
+	require.Len(t, byLicense["MIT"], 1)
+	// The indexed entry is the merged one, not the pre-merge copy.
+	assert.Equal(t, "(c) Foo Inc", byLicense["MIT"][0].Copyright)
+}
+
+func TestBuildIndex_IndexesEveryLicenseOfAMergedComponent(t *testing.T) {
+	t.Parallel()
+
+	components := []Component{
+		{Name: "foo", Version: "1.0.0", PURL: "pkg:npm/foo@1.0.0", Licenses: []LicenseChoice{
+			{License: &struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			}{ID: "MIT"}},
+		}},
+		{Name: "foo", Version: "1.0.0", PURL: "pkg:npm/foo@1.0.0", Licenses: []LicenseChoice{
+			{License: &struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			}{ID: "Apache-2.0"}},
+		}},
+	}
+
+	byLicense, _ := buildIndex(components, Filters{}, nil, nil, copyrightEnricher{})
+
+	require.Len(t, byLicense["MIT"], 1)
+	require.Len(t, byLicense["Apache-2.0"], 1)
+	assert.Equal(t, []string{"Apache-2.0", "MIT"}, byLicense["MIT"][0].LicenseIDs)
 }
 
 func TestShouldIgnoreComponent(t *testing.T) {

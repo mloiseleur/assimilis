@@ -244,7 +244,6 @@ func buildLicenseBlocks(ctx context.Context, cfg Config, byLicense map[string][]
 }
 
 func buildIndex(components []Component, filters Filters, licenseMap, licenseCorrections map[string]string, enricher copyrightEnricher) (map[string][]OutComponent, map[string]OutComponent) {
-	byLicense := map[string][]OutComponent{}
 	byKey := map[string]OutComponent{}
 
 	for _, c := range components {
@@ -271,9 +270,15 @@ func buildIndex(components []Component, filters Filters, licenseMap, licenseCorr
 			Copyright:  enricher.enrich(c.PURL, c.Copyright),
 		}
 
-		out = mergeOrInsert(byKey, c, out)
+		mergeOrInsert(byKey, c, out)
+	}
 
-		for _, id := range ids {
+	// Indexed after the merge loop: a component occurring twice in the SBOM must
+	// appear once per license, with the licenses of every occurrence.
+	byLicense := map[string][]OutComponent{}
+
+	for _, out := range byKey {
+		for _, id := range out.LicenseIDs {
 			byLicense[id] = append(byLicense[id], out)
 		}
 	}
@@ -305,7 +310,7 @@ func sortComponents(a, b OutComponent) bool {
 	return a.Copyright < b.Copyright
 }
 
-func mergeOrInsert(byKey map[string]OutComponent, c Component, out OutComponent) OutComponent {
+func mergeOrInsert(byKey map[string]OutComponent, c Component, out OutComponent) {
 	key := c.PURL
 	if key == "" {
 		key = c.Name + "@" + c.Version
@@ -319,10 +324,8 @@ func mergeOrInsert(byKey map[string]OutComponent, c Component, out OutComponent)
 
 		byKey[key] = existing
 
-		return existing
+		return
 	}
 
 	byKey[key] = out
-
-	return out
 }

@@ -65,6 +65,18 @@ func TestExtractGoCopyrightFromCache_EscapedPath(t *testing.T) {
 	assert.Equal(t, "Copyright (c) 2013 TOML Authors", got)
 }
 
+func TestExtractGoCopyrightFromCache_EscapedVersion(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modDir := filepath.Join(dir, "github.com", "foo", "bar@v1.0.0-!r!c1")
+	require.NoError(t, os.MkdirAll(modDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(modDir, "LICENSE"), []byte("Copyright (c) 2024 Foo"), 0o644))
+
+	got := extractGoCopyrightFromCache(dir, "pkg:golang/github.com/foo/bar@v1.0.0-RC1")
+	assert.Equal(t, "Copyright (c) 2024 Foo", got)
+}
+
 func TestExtractGoCopyrightFromCache_NotFound(t *testing.T) {
 	t.Parallel()
 

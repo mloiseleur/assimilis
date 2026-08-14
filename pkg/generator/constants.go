@@ -8,6 +8,7 @@ const (
 	embeddedLicenseCorrectionsPath = "data/license-corrections.json"
 	embeddedFiltersPath            = "data/filters.json"
 
-	spdxNameMapURLFmt     = "https://raw.githubusercontent.com/spdx/license-list-data/%s/json/licenses.json"
-	spdxLicenseTextURLFmt = "https://raw.githubusercontent.com/spdx/license-list-data/%s/text/%s.txt"
+	spdxNameMapURLFmt      = "https://raw.githubusercontent.com/spdx/license-list-data/%s/json/licenses.json"
+	spdxExceptionMapURLFmt = "https://raw.githubusercontent.com/spdx/license-list-data/%s/json/exceptions.json"
+	spdxLicenseTextURLFmt  = "https://raw.githubusercontent.com/spdx/license-list-data/%s/text/%s.txt"
 )

@@ -62,6 +62,21 @@ func TestGetLicenseText_ReturnCachedFile(t *testing.T) {
 	assert.Equal(t, "cached", txt)
 }
 
+func TestGetLicenseText_RejectsUnsafeIdentifier(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	outside := filepath.Join(tmp, "outside.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("secret"), 0o644))
+
+	cfg := Config{OutLicensesDir: filepath.Join(tmp, "licenses"), SPDXVersion: "v0"}
+
+	for _, licenseID := range []string{"../outside", "sub/MIT", "MIT\nX", "", "MIT WITH LLVM-exception"} {
+		_, err := getLicenseText(context.Background(), cfg, licenseID)
+		require.ErrorContains(t, err, "invalid license identifier")
+	}
+}
+
 func TestGetLicenseText_LicenseRefReadCustomText(t *testing.T) {
 	t.Parallel()
 

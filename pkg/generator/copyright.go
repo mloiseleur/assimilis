@@ -81,17 +81,17 @@ func extractGoCopyrightFromCache(gomodcache, purl string) string {
 		return ""
 	}
 
-	licensePath := filepath.Join(gomodcache, escapeModulePath(modulePath)+"@"+version, "LICENSE")
+	licensePath := filepath.Join(gomodcache, escapeModulePath(modulePath)+"@"+escapeModulePath(version), "LICENSE")
 
 	return firstCopyrightLine(readFileText(licensePath))
 }
 
-// escapeModulePath escapes a Go module path for the module cache filesystem
-// layout: each uppercase letter is replaced with "!" followed by its lowercase.
-func escapeModulePath(path string) string {
+// escapeModulePath escapes a module path or version for the module cache
+// filesystem layout: each uppercase letter becomes "!" plus its lowercase.
+func escapeModulePath(s string) string {
 	var b strings.Builder
 
-	for _, r := range path {
+	for _, r := range s {
 		if unicode.IsUpper(r) {
 			b.WriteByte('!')
 			b.WriteRune(unicode.ToLower(r))

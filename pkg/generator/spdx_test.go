@@ -71,9 +71,31 @@ func TestGetLicenseText_RejectsUnsafeIdentifier(t *testing.T) {
 
 	cfg := Config{OutLicensesDir: filepath.Join(tmp, "licenses"), SPDXVersion: "v0"}
 
-	for _, licenseID := range []string{"../outside", "sub/MIT", "MIT\nX", "", "MIT WITH LLVM-exception"} {
+	unsafe := []string{
+		"../outside", "sub/MIT", "MIT\nX", "", "MIT WITH LLVM-exception",
+		"LicenseRef-../outside", "LicenseRef-sub/custom", "LicenseRef-", "DocumentRef-a:LicenseRef-../x",
+	}
+	for _, licenseID := range unsafe {
 		_, err := getLicenseText(context.Background(), cfg, licenseID)
-		require.ErrorContains(t, err, "invalid license identifier")
+		require.ErrorContains(t, err, "invalid license identifier", licenseID)
+	}
+}
+
+func TestGetLicenseText_LicenseRefAllowsTrivyCharacters(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	cfg := Config{OutLicensesDir: tmp}
+
+	// trivy derives custom IDs from filenames, so they carry "_" and ".".
+	for _, licenseID := range []string{"LicenseRef-license_apache", "LicenseRef-COPYING.BSD", "DocumentRef-vendor:LicenseRef-eula"} {
+		customPath := filepath.Join(tmp, "custom", licenseID+".txt")
+		require.NoError(t, os.MkdirAll(filepath.Dir(customPath), 0o755))
+		require.NoError(t, os.WriteFile(customPath, []byte("custom "+licenseID), 0o644))
+
+		txt, err := getLicenseText(context.Background(), cfg, licenseID)
+		require.NoError(t, err)
+		assert.Equal(t, "custom "+licenseID, txt)
 	}
 }
 

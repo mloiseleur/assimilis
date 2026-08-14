@@ -77,6 +77,42 @@ func TestExtractGoCopyrightFromCache_EscapedVersion(t *testing.T) {
 	assert.Equal(t, "Copyright (c) 2024 Foo", got)
 }
 
+func TestExtractGoCopyrightFromCache_PercentEncodedVersion(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modDir := filepath.Join(dir, "github.com", "!azure", "azure-sdk-for-go@v68.0.0+incompatible")
+	require.NoError(t, os.MkdirAll(modDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(modDir, "LICENSE"), []byte("Copyright 2014-2017 Microsoft"), 0o644))
+
+	// syft percent-encodes "+" per the PURL spec.
+	got := extractGoCopyrightFromCache(dir, "pkg:golang/github.com/Azure/azure-sdk-for-go@v68.0.0%2Bincompatible?type=module")
+	assert.Equal(t, "Copyright 2014-2017 Microsoft", got)
+}
+
+func TestExtractGoCopyrightFromCache_RejectsPathEscape(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cache := filepath.Join(dir, "cache")
+
+	// Reachable only by escaping the cache directory, either directly or through
+	// the version, and reachable only if the escape is decoded but unchecked.
+	for _, outside := range []string{filepath.Join(dir, "outside@v1"), filepath.Join(cache, "outside")} {
+		require.NoError(t, os.MkdirAll(outside, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(outside, "LICENSE"), []byte("Copyright (c) Someone Else"), 0o644))
+	}
+
+	for _, purl := range []string{
+		"pkg:golang/../outside@v1",
+		"pkg:golang/%2E%2E/outside@v1",
+		"pkg:golang/mod@../outside",
+		"pkg:golang//absolute@v1",
+	} {
+		assert.Empty(t, extractGoCopyrightFromCache(cache, purl), purl)
+	}
+}
+
 func TestExtractGoCopyrightFromCache_NotFound(t *testing.T) {
 	t.Parallel()
 

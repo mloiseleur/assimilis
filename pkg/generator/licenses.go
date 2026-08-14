@@ -99,8 +99,8 @@ func resolveSingleLicense(lic string, licenseMap map[string]string) string {
 	// SPDX exceptions are absent from the license list but their text sits next to
 	// the license texts, so keep the ID rather than degrading it to a LicenseRef-*
 	// that has no retrievable text.
-	if expression.ValidateSPDXException(lic) {
-		return lic
+	if exc, ok := canonicalSPDXException(lic); ok {
+		return exc
 	}
 
 	// Pass-through any LicenseRef-* the SBOM already provided.
@@ -118,6 +118,30 @@ func resolveSingleLicense(lic string, licenseMap map[string]string) string {
 	}
 
 	return licRef
+}
+
+// canonicalSPDXException resolves a bare exception token to its SPDX-cased ID.
+// trivy validates exceptions case-insensitively but, unlike SPDXLicenseID for
+// licenses, exposes no canonical lookup; the casing matters because the text is
+// later fetched from a case-sensitive URL. NormalizeForSPDX rewrites the
+// right-hand side of a "WITH" to the canonical ID, so ask it about a synthetic
+// expression and keep that side.
+func canonicalSPDXException(lic string) (string, bool) {
+	if !expression.ValidateSPDXException(lic) {
+		return "", false
+	}
+
+	parsed, err := expression.Normalize("MIT WITH "+lic, expression.NormalizeForSPDX)
+	if err != nil {
+		return lic, true
+	}
+
+	compound, ok := parsed.(expression.CompoundExpr)
+	if !ok {
+		return lic, true
+	}
+
+	return compound.Right().String(), true
 }
 
 // matchLicenseOverride checks if a PURL matches any entry in license-corrections.json.

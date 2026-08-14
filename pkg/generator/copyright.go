@@ -76,8 +76,10 @@ func extractGoCopyrightFromCache(gomodcache, purl string) string {
 		return ""
 	}
 
-	modulePath, version := rest[:idx], rest[idx+1:]
-	if modulePath == "" || version == "" {
+	// PURL components are percent-encoded (syft emits "+incompatible" as
+	// "%2Bincompatible"); decode before mapping them onto the cache layout.
+	modulePath, version := pathUnescape(rest[:idx]), pathUnescape(rest[idx+1:])
+	if !safeRelPath(modulePath) || !safeRelPath(version) {
 		return ""
 	}
 
@@ -130,7 +132,7 @@ func extractNpmCopyright(nodeModulesDir, purl string) string {
 	}
 
 	name, _ := parseNpmPURL(purl)
-	if name == "" {
+	if !safeRelPath(name) {
 		return ""
 	}
 
@@ -166,12 +168,7 @@ func parseNpmPURL(purl string) (string, string) {
 	}
 
 	// URL-decode for scoped packages encoded as %40babel%2Fcore.
-	decoded, err := url.PathUnescape(rest[:idx])
-	if err != nil {
-		decoded = rest[:idx]
-	}
-
-	return decoded, rest[idx+1:]
+	return pathUnescape(rest[:idx]), pathUnescape(rest[idx+1:])
 }
 
 func npmAuthorCopyright(path string) string {
@@ -246,8 +243,8 @@ func extractPythonCopyright(sitePackagesDir, purl string) string {
 		return ""
 	}
 
-	packageName, version := rest[:idx], rest[idx+1:]
-	if packageName == "" || version == "" {
+	packageName, version := pathUnescape(rest[:idx]), pathUnescape(rest[idx+1:])
+	if !safeRelPath(packageName) || !safeRelPath(version) {
 		return ""
 	}
 
@@ -280,6 +277,34 @@ func pythonAuthorCopyright(metadata string) string {
 }
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
+
+// pathUnescape percent-decodes s, leaving it untouched when it is not valid
+// percent-encoding.
+func pathUnescape(s string) string {
+	decoded, err := url.PathUnescape(s)
+	if err != nil {
+		return s
+	}
+
+	return decoded
+}
+
+// safeRelPath reports whether s can be joined onto a cache directory without
+// escaping it. PURL components come from the SBOM, which is untrusted input, so
+// they are checked after decoding rather than before.
+func safeRelPath(s string) bool {
+	if s == "" || strings.ContainsAny(s, "\x00\\") || strings.HasPrefix(s, "/") {
+		return false
+	}
+
+	for seg := range strings.SplitSeq(s, "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			return false
+		}
+	}
+
+	return true
+}
 
 // firstCopyrightLine returns the first line in text that starts with "Copyright"
 // (case-insensitive), trimmed of surrounding whitespace.

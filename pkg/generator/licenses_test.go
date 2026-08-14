@@ -282,6 +282,19 @@ func TestNormalizeLicenseIDs_CompoundExpressionWITH(t *testing.T) {
 	}
 }
 
+func TestNormalizeLicenseIDs_BareExceptionCanonicalCasing(t *testing.T) {
+	t.Parallel()
+
+	// An exception can reach us outside a "WITH" compound, where trivy never
+	// canonicalises it. The SPDX text URL is case-sensitive, so the ID must be
+	// canonicalised here instead.
+	ids := normalizeLicenseIDs([]LicenseChoice{{Expression: "llvm-exception"}}, nil)
+	assert.Equal(t, []string{"LLVM-exception"}, ids)
+
+	ids = normalizeLicenseIDs([]LicenseChoice{{Expression: "classpath-exception-2.0"}}, nil)
+	assert.Equal(t, []string{"Classpath-exception-2.0"}, ids)
+}
+
 func TestMatchLicenseOverride_LongestPrefixWins(t *testing.T) {
 	t.Parallel()
 

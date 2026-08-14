@@ -103,8 +103,21 @@ func fetchSpdxNames(ctx context.Context, url string) (map[string]string, error) 
 // ID. It doubles as a path-segment guard, since IDs come verbatim from the SBOM.
 var spdxIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+-]*$`)
 
+// licenseRefPattern guards the "LicenseRef-" branch, optionally qualified by a
+// "DocumentRef-…:" prefix. It is deliberately looser than spdxIDPattern: trivy
+// derives these IDs from filenames, so they carry characters such as "_" that
+// the SPDX idstring grammar forbids. Path separators stay excluded.
+var licenseRefPattern = regexp.MustCompile(`^(?:DocumentRef-[A-Za-z0-9._-]+:)?LicenseRef-[A-Za-z0-9._-]+$`)
+
+// isLicenseRef reports whether licenseID is a custom license reference rather
+// than an SPDX list entry.
+func isLicenseRef(licenseID string) bool {
+	return strings.HasPrefix(licenseID, "LicenseRef-") || strings.HasPrefix(licenseID, "DocumentRef-")
+}
+
 func getLicenseText(ctx context.Context, cfg Config, licenseID string) (string, error) {
-	if !spdxIDPattern.MatchString(licenseID) {
+	if ref := isLicenseRef(licenseID); (ref && !licenseRefPattern.MatchString(licenseID)) ||
+		(!ref && !spdxIDPattern.MatchString(licenseID)) {
 		return "", fmt.Errorf("invalid license identifier %q", licenseID)
 	}
 
@@ -114,7 +127,7 @@ func getLicenseText(ctx context.Context, cfg Config, licenseID string) (string, 
 		return string(b), nil
 	}
 
-	if strings.HasPrefix(licenseID, "LicenseRef-") {
+	if isLicenseRef(licenseID) {
 		customPath := filepath.Join(cfg.OutLicensesDir, "custom", licenseID+".txt")
 
 		b, err := os.ReadFile(customPath)

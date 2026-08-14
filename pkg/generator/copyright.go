@@ -278,8 +278,6 @@ func pythonAuthorCopyright(metadata string) string {
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
 
-// pathUnescape percent-decodes s, leaving it untouched when it is not valid
-// percent-encoding.
 func pathUnescape(s string) string {
 	decoded, err := url.PathUnescape(s)
 	if err != nil {
@@ -290,8 +288,7 @@ func pathUnescape(s string) string {
 }
 
 // safeRelPath reports whether s can be joined onto a cache directory without
-// escaping it. PURL components come from the SBOM, which is untrusted input, so
-// they are checked after decoding rather than before.
+// escaping it. Callers must decode s first, or an encoded "../" slips through.
 func safeRelPath(s string) bool {
 	if s == "" || strings.ContainsAny(s, "\x00\\") || strings.HasPrefix(s, "/") {
 		return false

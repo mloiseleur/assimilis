@@ -103,14 +103,10 @@ func fetchSpdxNames(ctx context.Context, url string) (map[string]string, error) 
 // ID. It doubles as a path-segment guard, since IDs come verbatim from the SBOM.
 var spdxIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+-]*$`)
 
-// licenseRefPattern guards the "LicenseRef-" branch, optionally qualified by a
-// "DocumentRef-…:" prefix. It is deliberately looser than spdxIDPattern: trivy
-// derives these IDs from filenames, so they carry characters such as "_" that
-// the SPDX idstring grammar forbids. Path separators stay excluded.
+// licenseRefPattern guards the "LicenseRef-" branch. It allows "_", which the
+// SPDX idstring grammar forbids, because trivy derives these IDs from filenames.
 var licenseRefPattern = regexp.MustCompile(`^(?:DocumentRef-[A-Za-z0-9._-]+:)?LicenseRef-[A-Za-z0-9._-]+$`)
 
-// isLicenseRef reports whether licenseID is a custom license reference rather
-// than an SPDX list entry.
 func isLicenseRef(licenseID string) bool {
 	return strings.HasPrefix(licenseID, "LicenseRef-") || strings.HasPrefix(licenseID, "DocumentRef-")
 }

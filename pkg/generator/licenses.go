@@ -120,12 +120,10 @@ func resolveSingleLicense(lic string, licenseMap map[string]string) string {
 	return licRef
 }
 
-// canonicalSPDXException resolves a bare exception token to its SPDX-cased ID.
-// trivy validates exceptions case-insensitively but, unlike SPDXLicenseID for
-// licenses, exposes no canonical lookup; the casing matters because the text is
-// later fetched from a case-sensitive URL. NormalizeForSPDX rewrites the
-// right-hand side of a "WITH" to the canonical ID, so ask it about a synthetic
-// expression and keep that side.
+// canonicalSPDXException resolves a bare exception token to its SPDX-cased ID,
+// which matters because the text is fetched from a case-sensitive URL. trivy
+// exposes no canonical lookup for exceptions, only NormalizeForSPDX rewriting
+// the right-hand side of a "WITH" — hence the synthetic expression.
 func canonicalSPDXException(lic string) (string, bool) {
 	if !expression.ValidateSPDXException(lic) {
 		return "", false

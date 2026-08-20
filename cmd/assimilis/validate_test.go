@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -153,6 +154,64 @@ func TestValidateThirdParty(t *testing.T) {
 			require.Equal(t, testCase.expectedAge, age)
 		})
 	}
+}
+
+// An ambiguous "v2" makes rev-parse warn on stderr while exiting 0.
+func TestRunGit_IgnoresStderrOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := newAmbiguousRefRepo(t)
+
+	ctx := context.Background()
+
+	commit, err := runGit(ctx, repoRoot, "rev-parse", "--verify", "v2^{commit}")
+	require.NoError(t, err)
+	require.Regexp(t, "^[0-9a-f]{40}$", commit)
+
+	// The sha must stay usable by the commands the caller chains onto it.
+	_, err = runGit(ctx, repoRoot, "show", "-s", "--format=%ct", commit)
+	require.NoError(t, err)
+}
+
+func TestRunGit_ReportsStderrOnFailure(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := newAmbiguousRefRepo(t)
+
+	_, err := runGit(
+		context.Background(),
+		repoRoot,
+		"rev-parse",
+		"--verify",
+		"does-not-exist^{commit}",
+	)
+	// Not asserted on git's wording: its messages are localized.
+	require.ErrorContains(t, err, "exit status 128: ")
+}
+
+// newAmbiguousRefRepo: one commit, reachable as both branch "v2" and tag "v2".
+func newAmbiguousRefRepo(t *testing.T) string {
+	t.Helper()
+
+	repoRoot := t.TempDir()
+
+	commands := [][]string{
+		{"init", "-b", "main"},
+		{"config", "user.name", "assimilis-test"},
+		{"config", "user.email", "assimilis-test@example.invalid"},
+		{"commit", "--allow-empty", "-m", "initial"},
+		{"branch", "v2"},
+		{"tag", "v2"},
+	}
+
+	for _, args := range commands {
+		cmd := exec.Command("git", append([]string{"-C", repoRoot}, args...)...)
+
+		output, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "git %v: %s", args, output)
+	}
+
+	return repoRoot
 }
 
 func fakeValidationGit(t *testing.T, repoRoot string, commitAt time.Time, generatedAt string) gitRunner {

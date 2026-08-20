@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -164,6 +165,14 @@ func TestRunGit_IgnoresStderrOnSuccess(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Without that warning the test would still pass on a runGit that merges
+	// stderr into stdout, so the precondition is asserted rather than assumed.
+	require.NotEmpty(
+		t,
+		gitStderr(t, repoRoot, "rev-parse", "--verify", "v2^{commit}"),
+		"git no longer warns about the ambiguous ref this test relies on",
+	)
+
 	commit, err := runGit(ctx, repoRoot, "rev-parse", "--verify", "v2^{commit}")
 	require.NoError(t, err)
 	require.Regexp(t, "^[0-9a-f]{40}$", commit)
@@ -212,6 +221,21 @@ func newAmbiguousRefRepo(t *testing.T) string {
 	}
 
 	return repoRoot
+}
+
+// gitStderr: git's stderr for one command, kept apart from stdout.
+func gitStderr(t *testing.T, repoRoot string, args ...string) string {
+	t.Helper()
+
+	cmd := exec.Command("git", append([]string{"-C", repoRoot}, args...)...)
+
+	var stderr bytes.Buffer
+
+	cmd.Stderr = &stderr
+
+	require.NoErrorf(t, cmd.Run(), "git %v: %s", args, stderr.String())
+
+	return strings.TrimSpace(stderr.String())
 }
 
 func fakeValidationGit(t *testing.T, repoRoot string, commitAt time.Time, generatedAt string) gitRunner {

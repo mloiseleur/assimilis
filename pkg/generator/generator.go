@@ -45,6 +45,21 @@ func (e MissingLicensesError) Error() string {
 	)
 }
 
+// UnidentifiedComponentsError indicates that some components had no usable
+// license information and no PURL. license-corrections.json and the PURL
+// filters are both keyed by PURL, so these components cannot be corrected or
+// excluded without fixing the SBOM itself.
+type UnidentifiedComponentsError struct {
+	Components []string
+}
+
+func (e UnidentifiedComponentsError) Error() string {
+	return fmt.Sprintf(
+		"Missing license information for components without a PURL: %s. license-corrections.json is keyed by PURL, so these cannot be corrected: fix the SBOM to give them a purl or a license.",
+		strings.Join(e.Components, ", "),
+	)
+}
+
 // Run executes the generator with the given configuration.
 func Run(ctx context.Context, cfg Config) error {
 	sbom, excludeComponents, licenseMap, licenseCorrections, spdxNames, err := loadInputs(ctx, cfg)
@@ -155,12 +170,27 @@ func buildModel(ctx context.Context, cfg Config, sbom SBOM, filters Filters, lic
 
 	if len(missing) > 0 {
 		purls := make([]string, 0, len(missing))
+		unidentified := make([]string, 0, len(missing))
+
 		for _, c := range missing {
+			if c.PURL == "" {
+				unidentified = append(unidentified, c.Name+"@"+c.Version)
+
+				continue
+			}
+
 			purls = append(purls, c.PURL)
 		}
 
 		// buildIndex collects from a map, so the order is random.
 		sort.Strings(purls)
+		sort.Strings(unidentified)
+
+		// Reported first: a PURL-less component has no remedy short of editing the
+		// SBOM, whereas the others can be resolved with license-corrections.json.
+		if len(unidentified) > 0 {
+			return Model{}, UnidentifiedComponentsError{Components: unidentified}
+		}
 
 		return Model{}, MissingLicensesError{ComponentPURLs: purls}
 	}

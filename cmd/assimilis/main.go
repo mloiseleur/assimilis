@@ -42,6 +42,14 @@ func main() {
 				Msg("Unknown license expressions found.")
 		}
 
+		var unidentifiedErr generator.UnidentifiedComponentsError
+		if errors.As(err, &unidentifiedErr) {
+			log.Fatal().
+				Err(unidentifiedErr).
+				Strs("unidentified_components", unidentifiedErr.Components).
+				Msg("Missing license information for components without a PURL.")
+		}
+
 		var missingErr generator.MissingLicensesError
 		if errors.As(err, &missingErr) {
 			log.Fatal().

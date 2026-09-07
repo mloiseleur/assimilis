@@ -174,6 +174,34 @@ func TestBuildModel_MissingLicensesSorted(t *testing.T) {
 	require.Equal(t, []string{"pkg:golang/a@v1", "pkg:golang/b@v1", "pkg:golang/c@v1"}, missingErr.ComponentPURLs)
 }
 
+func TestBuildModel_FailsOnComponentsWithoutPURL(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cfg := DefaultConfig()
+	cfg.OutLicensesDir = t.TempDir()
+
+	sbom := SBOM{
+		Components: []Component{
+			{Name: "zeta", Version: "v2"},
+			{Name: "alpha", Version: "v1"},
+			// Correctable, so it must not mask the components above.
+			{Name: "gamma", Version: "v3", PURL: "pkg:golang/gamma@v3"},
+		},
+	}
+
+	_, err := buildModel(ctx, cfg, sbom, Filters{}, nil, nil, map[string]string{})
+	require.Error(t, err)
+
+	var unidentifiedErr UnidentifiedComponentsError
+	require.ErrorAs(t, err, &unidentifiedErr)
+	require.Equal(t, []string{"alpha@v1", "zeta@v2"}, unidentifiedErr.Components)
+	require.Contains(t, unidentifiedErr.Error(), "alpha@v1, zeta@v2")
+
+	var missingErr MissingLicensesError
+	require.NotErrorAs(t, err, &missingErr)
+}
+
 func TestBuildIndex_DuplicateComponentListedOncePerLicense(t *testing.T) {
 	t.Parallel()
 

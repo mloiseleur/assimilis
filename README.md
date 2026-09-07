@@ -123,7 +123,7 @@ Example:
 
 Keys are matched as PURL prefixes — `"pkg:golang/std"` matches `"pkg:golang/std@go1.25.3"`, and `"pkg:golang/github.com/foo/bar"` matches sub-packages like `"pkg:golang/github.com/foo/bar/v2/sub@v2.1.0"`.
 
-If a component still has no license after normalization and corrections, generation fails and the offending PURLs are listed.
+A component with no license after normalization and corrections fails generation, listing the offending PURLs. Components lacking both a license and a `purl` are reported separately: corrections and filters are PURL-keyed, so only fixing the SBOM resolves those.
 
 ### Custom/Non-SPDX Licenses (LicenseRef-*)
 

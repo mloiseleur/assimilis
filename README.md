@@ -123,6 +123,8 @@ Example:
 
 Keys are matched as PURL prefixes — `"pkg:golang/std"` matches `"pkg:golang/std@go1.25.3"`, and `"pkg:golang/github.com/foo/bar"` matches sub-packages like `"pkg:golang/github.com/foo/bar/v2/sub@v2.1.0"`.
 
+If a component still has no license after normalization and corrections, generation fails and the offending PURLs are listed.
+
 ### Custom/Non-SPDX Licenses (LicenseRef-*)
 
 If a component uses a non-SPDX license ID or an unmapped license expression, Assimilis expects a corresponding license text file in `third_party/licenses/custom`.

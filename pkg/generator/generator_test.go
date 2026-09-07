@@ -148,7 +148,30 @@ func TestBuildModel_FailsOnMissingLicenses(t *testing.T) {
 	require.ErrorAs(t, err, &missingErr)
 	require.Len(t, missingErr.ComponentPURLs, 1)
 	require.Equal(t, "pkg:golang/github.com/rcrowley/go-metrics@v0.0.0-20190712003943-3a3abf6ff459", missingErr.ComponentPURLs[0])
-	require.Equal(t, "Missing license information found. Add an updated SBOM that includes these license blocks, or map them in license-corrections.json.", missingErr.Error())
+	require.Equal(t, "Missing license information for: pkg:golang/github.com/rcrowley/go-metrics@v0.0.0-20190712003943-3a3abf6ff459. Add an updated SBOM that includes these license blocks, or map them in license-corrections.json.", missingErr.Error())
+}
+
+func TestBuildModel_MissingLicensesSorted(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cfg := DefaultConfig()
+	cfg.OutLicensesDir = t.TempDir()
+
+	sbom := SBOM{
+		Components: []Component{
+			{Name: "c", Version: "v1", PURL: "pkg:golang/c@v1"},
+			{Name: "a", Version: "v1", PURL: "pkg:golang/a@v1"},
+			{Name: "b", Version: "v1", PURL: "pkg:golang/b@v1"},
+		},
+	}
+
+	_, err := buildModel(ctx, cfg, sbom, Filters{}, nil, nil, map[string]string{})
+	require.Error(t, err)
+
+	var missingErr MissingLicensesError
+	require.ErrorAs(t, err, &missingErr)
+	require.Equal(t, []string{"pkg:golang/a@v1", "pkg:golang/b@v1", "pkg:golang/c@v1"}, missingErr.ComponentPURLs)
 }
 
 func TestBuildIndex_DuplicateComponentListedOncePerLicense(t *testing.T) {

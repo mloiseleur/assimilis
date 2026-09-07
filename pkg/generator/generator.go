@@ -39,7 +39,10 @@ type MissingLicensesError struct {
 }
 
 func (e MissingLicensesError) Error() string {
-	return "Missing license information found. Add an updated SBOM that includes these license blocks, or map them in license-corrections.json."
+	return fmt.Sprintf(
+		"Missing license information for: %s. Add an updated SBOM that includes these license blocks, or map them in license-corrections.json.",
+		strings.Join(e.ComponentPURLs, ", "),
+	)
 }
 
 // Run executes the generator with the given configuration.
@@ -155,6 +158,9 @@ func buildModel(ctx context.Context, cfg Config, sbom SBOM, filters Filters, lic
 		for _, c := range missing {
 			purls = append(purls, c.PURL)
 		}
+
+		// buildIndex collects from a map, so the order is random.
+		sort.Strings(purls)
 
 		return Model{}, MissingLicensesError{ComponentPURLs: purls}
 	}

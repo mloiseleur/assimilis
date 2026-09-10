@@ -32,6 +32,16 @@ func (e UnknownLicensesError) Error() string {
 	)
 }
 
+// MissingLicensesError indicates that some components had no usable
+// license information after applying normalization and overrides.
+type MissingLicensesError struct {
+	Components []string
+}
+
+func (e MissingLicensesError) Error() string {
+	return "Missing license information found. Add an updated SBOM that includes these license blocks, or map them in license-corrections.json."
+}
+
 // Run executes the generator with the given configuration.
 func Run(ctx context.Context, cfg Config) error {
 	sbom, excludeComponents, licenseMap, licenseCorrections, spdxNames, err := loadInputs(ctx, cfg)
@@ -138,7 +148,24 @@ func shouldIgnoreComponent(c Component, filters Filters) bool {
 
 func buildModel(ctx context.Context, cfg Config, sbom SBOM, filters Filters, licenseMap, licenseCorrections, spdxNames map[string]string) (Model, error) {
 	enricher := newCopyrightEnricher(cfg)
-	byLicense, byKey := buildIndex(sbom.Components, filters, licenseMap, licenseCorrections, enricher)
+	byLicense, byKey, missing := buildIndex(sbom.Components, filters, licenseMap, licenseCorrections, enricher)
+
+	if len(missing) > 0 {
+		components := make([]string, 0, len(missing))
+		for _, c := range missing {
+			identifier := c.PURL
+			if identifier == "" {
+				identifier = c.Name
+				if c.Version != "" {
+					identifier += "@" + c.Version
+				}
+			}
+
+			components = append(components, identifier)
+		}
+
+		return Model{}, MissingLicensesError{Components: components}
+	}
 
 	licenses, err := buildLicenseBlocks(ctx, cfg, byLicense, spdxNames)
 	if err != nil {
@@ -243,7 +270,7 @@ func buildLicenseBlocks(ctx context.Context, cfg Config, byLicense map[string][]
 	return licenses, nil
 }
 
-func buildIndex(components []Component, filters Filters, licenseMap, licenseCorrections map[string]string, enricher copyrightEnricher) (map[string][]OutComponent, map[string]OutComponent) {
+func buildIndex(components []Component, filters Filters, licenseMap, licenseCorrections map[string]string, enricher copyrightEnricher) (map[string][]OutComponent, map[string]OutComponent, []OutComponent) {
 	byKey := map[string]OutComponent{}
 
 	for _, c := range components {
@@ -283,7 +310,15 @@ func buildIndex(components []Component, filters Filters, licenseMap, licenseCorr
 		}
 	}
 
-	return byLicense, byKey
+	missing := make([]OutComponent, 0)
+
+	for _, out := range byKey {
+		if len(out.LicenseIDs) == 0 {
+			missing = append(missing, out)
+		}
+	}
+
+	return byLicense, byKey, missing
 }
 
 // sortComponents orders components by name, version, PURL, URL, copyright in

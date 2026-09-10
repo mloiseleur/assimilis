@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"context"
 	"regexp"
 	"testing"
 
@@ -69,10 +70,11 @@ func TestBuildIndex_LicenseOverrideForComponentWithoutLicense(t *testing.T) {
 		"pkg:golang/std": "BSD-3-Clause",
 	}
 
-	byLicense, byKey := buildIndex(components, Filters{}, nil, overrides, copyrightEnricher{})
+	byLicense, byKey, missing := buildIndex(components, Filters{}, nil, overrides, copyrightEnricher{})
 
 	require.Contains(t, byLicense, "BSD-3-Clause")
 	require.Contains(t, byLicense, "MIT")
+	require.Empty(t, missing)
 	require.Equal(t, []string{"BSD-3-Clause"}, byKey["pkg:golang/std@go1.25.3"].LicenseIDs)
 }
 
@@ -91,10 +93,11 @@ func TestBuildIndex_OverrideReplacesExistingLicense(t *testing.T) {
 		"pkg:npm/foo": "MIT",
 	}
 
-	_, byKey := buildIndex(components, Filters{}, nil, overrides, copyrightEnricher{})
+	_, byKey, missing := buildIndex(components, Filters{}, nil, overrides, copyrightEnricher{})
 
 	// missing-licenses entries take priority and correct wrong licenses from the SBOM.
 	require.Equal(t, []string{"MIT"}, byKey["pkg:npm/foo@1.0.0"].LicenseIDs)
+	require.Empty(t, missing)
 }
 
 func TestBuildIndex_MergesDuplicateComponents(t *testing.T) {
@@ -115,11 +118,44 @@ func TestBuildIndex_MergesDuplicateComponents(t *testing.T) {
 		}},
 	}
 
-	_, byKey := buildIndex(components, Filters{}, nil, nil, copyrightEnricher{})
+	_, byKey, missing := buildIndex(components, Filters{}, nil, nil, copyrightEnricher{})
 
 	merged := byKey["pkg:npm/foo@1.0.0"]
 	require.Equal(t, []string{"Apache-2.0", "MIT"}, merged.LicenseIDs)
 	require.Equal(t, "(c) Foo Inc", merged.Copyright)
+	require.Empty(t, missing)
+}
+
+func TestBuildModel_FailsOnMissingLicenses(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cfg := DefaultConfig()
+	cfg.OutLicensesDir = t.TempDir()
+	sbom := SBOM{
+		Components: []Component{
+			{
+				Name:    "go-metrics",
+				Version: "v0.0.0-20190712003943-3a3abf6ff459",
+				PURL:    "pkg:golang/github.com/rcrowley/go-metrics@v0.0.0-20190712003943-3a3abf6ff459",
+			},
+			{
+				Name:    "foo",
+				Version: "1.2.3",
+			},
+		},
+	}
+
+	_, err := buildModel(ctx, cfg, sbom, Filters{}, nil, nil, map[string]string{})
+	require.Error(t, err)
+
+	var missingErr MissingLicensesError
+	require.ErrorAs(t, err, &missingErr)
+	require.ElementsMatch(t, []string{
+		"pkg:golang/github.com/rcrowley/go-metrics@v0.0.0-20190712003943-3a3abf6ff459",
+		"foo@1.2.3",
+	}, missingErr.Components)
+	require.Equal(t, "Missing license information found. Add an updated SBOM that includes these license blocks, or map them in license-corrections.json.", missingErr.Error())
 }
 
 func TestBuildIndex_DuplicateComponentListedOncePerLicense(t *testing.T) {
@@ -137,11 +173,12 @@ func TestBuildIndex_DuplicateComponentListedOncePerLicense(t *testing.T) {
 		{Name: "foo", Version: "1.0.0", PURL: "pkg:npm/foo@1.0.0", Copyright: "(c) Foo Inc", Licenses: mit},
 	}
 
-	byLicense, _ := buildIndex(components, Filters{}, nil, nil, copyrightEnricher{})
+	byLicense, _, missing := buildIndex(components, Filters{}, nil, nil, copyrightEnricher{})
 
 	require.Len(t, byLicense["MIT"], 1)
 	// The indexed entry is the merged one, not the pre-merge copy.
 	assert.Equal(t, "(c) Foo Inc", byLicense["MIT"][0].Copyright)
+	require.Empty(t, missing)
 }
 
 func TestBuildIndex_IndexesEveryLicenseOfAMergedComponent(t *testing.T) {
@@ -162,11 +199,12 @@ func TestBuildIndex_IndexesEveryLicenseOfAMergedComponent(t *testing.T) {
 		}},
 	}
 
-	byLicense, _ := buildIndex(components, Filters{}, nil, nil, copyrightEnricher{})
+	byLicense, _, missing := buildIndex(components, Filters{}, nil, nil, copyrightEnricher{})
 
 	require.Len(t, byLicense["MIT"], 1)
 	require.Len(t, byLicense["Apache-2.0"], 1)
 	assert.Equal(t, []string{"Apache-2.0", "MIT"}, byLicense["MIT"][0].LicenseIDs)
+	require.Empty(t, missing)
 }
 
 func TestShouldIgnoreComponent(t *testing.T) {

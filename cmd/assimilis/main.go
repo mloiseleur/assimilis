@@ -42,6 +42,14 @@ func main() {
 				Msg("Unknown license expressions found.")
 		}
 
+		var missingErr generator.MissingLicensesError
+		if errors.As(err, &missingErr) {
+			log.Fatal().
+				Err(missingErr).
+				Strs("missing_components", missingErr.Components).
+				Msg("Missing license information found.")
+		}
+
 		log.Fatal().Err(err).Msg("Application error")
 	}
 }
